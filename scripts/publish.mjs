@@ -11,9 +11,15 @@ import fs from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 
-// On Windows npm is npm.cmd, and spawn does not fill in the extension — asking for "npm"
-// there fails with ENOENT before it ever reaches the registry.
-const npm = process.platform === "win32" ? "npm.cmd" : "npm"
+// On Windows npm is npm.cmd: spawn does not fill in the extension (ENOENT), and since Node 20
+// hardened spawn a .cmd can only be started through a shell (EINVAL). Both legs died here
+// before ever reaching the registry. Every argument below is a package name or a flag, so
+// going through cmd.exe introduces nothing to quote.
+const isWindows = process.platform === "win32"
+
+function npm(args, options) {
+	return execFileSync(isWindows ? "npm.cmd" : "npm", args, { ...options, shell: isWindows })
+}
 
 const { name, version } = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"))
 
@@ -23,13 +29,13 @@ if (published(name, version)) {
 else {
 	// --tag latest is required, not cosmetic: <upstream>-r.<revision> is a semver prerelease,
 	// and npm refuses to point latest at a prerelease unless asked outright.
-	execFileSync(npm, ["publish", "--access", "public", "--tag", "latest"], { stdio: "inherit" })
+	npm(["publish", "--access", "public", "--tag", "latest"], { stdio: "inherit" })
 	console.log(`published ${name}@${version}`)
 }
 
 function published(name, version) {
 	try {
-		const found = execFileSync(npm, ["view", `${name}@${version}`, "version"],
+		const found = npm(["view", `${name}@${version}`, "version"],
 			{ encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 		return found === version
 	}

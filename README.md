@@ -78,10 +78,14 @@ An SEA or an esbuild bundle has no `node_modules` to resolve against. Unpack the
 wherever you like and point the package at them:
 
 ```js
-import { setEngineDir } from '@knockdata/duckdb'
+import { setEngineDir } from '@knockdata/duckdb/engineDir.js'
 
 setEngineDir('/somewhere/duckdb')   // holding duckdb_napi.node and wasm/duckdb.wasm
 ```
+
+`engineDir.js` is a separate entry, not part of the main one, because it reads the filesystem —
+importing it from the root would pull `node:fs` into every browser bundle. `wasmPath()` from the
+same module answers where the wasm is, which is what a server serving `/duckdb/duckdb.wasm` needs.
 
 ## Why this exists
 

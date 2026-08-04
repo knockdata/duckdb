@@ -5,7 +5,11 @@
 //   getEntries(source, dbPath, "")        → schema folders
 //   getEntries(source, dbPath, "main")    → that schema's tables and views
 //   getEntry(source, "main/users", 0, 20) → one page of rows
-export { setEngineDir, addonPath, wasmPath } from './engineDir.js'
+//
+// Nothing here is Node only, so this entry bundles for the browser: node.js and browser.js
+// are both dynamic imports. setEngineDir, addonPath and wasmPath live in engineDir.js and are
+// imported from '@knockdata/duckdb/engineDir.js' — re-exporting them here would drag node:fs
+// into every browser bundle.
 
 const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null
 

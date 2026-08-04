@@ -11,6 +11,10 @@ import fs from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 
+// On Windows npm is npm.cmd, and spawn does not fill in the extension — asking for "npm"
+// there fails with ENOENT before it ever reaches the registry.
+const npm = process.platform === "win32" ? "npm.cmd" : "npm"
+
 const { name, version } = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"))
 
 if (published(name, version)) {
@@ -19,13 +23,13 @@ if (published(name, version)) {
 else {
 	// --tag latest is required, not cosmetic: <upstream>-r.<revision> is a semver prerelease,
 	// and npm refuses to point latest at a prerelease unless asked outright.
-	execFileSync("npm", ["publish", "--access", "public", "--tag", "latest"], { stdio: "inherit" })
+	execFileSync(npm, ["publish", "--access", "public", "--tag", "latest"], { stdio: "inherit" })
 	console.log(`published ${name}@${version}`)
 }
 
 function published(name, version) {
 	try {
-		const found = execFileSync("npm", ["view", `${name}@${version}`, "version"],
+		const found = execFileSync(npm, ["view", `${name}@${version}`, "version"],
 			{ encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 		return found === version
 	}

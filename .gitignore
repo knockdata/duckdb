@@ -1,0 +1,9 @@
+duckdb
+build
+dist
+node_modules
+wasm/duckdb.js
+wasm/duckdb.wasm
+*.tgz
+.DS_Store
+.npmrc

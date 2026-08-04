@@ -164,6 +164,17 @@ jobs:
       - name: Check it opens a database
         run: node test/wasm.js
 
+      # npm reads binding.gyp at publish time and, seeing one, writes gypfile:true and an
+      # "install": "node-gyp rebuild" into the PUBLISHED manifest — even though "files" keeps
+      # binding.gyp out of the tarball. Every consumer then runs node-gyp against a file that
+      # is not there and the install fails. This package never builds anything on install: the
+      # addon arrives prebuilt in a platform package. Deleting it here keeps the manifest clean
+      # without an install script, which would only trade the failure for an allow-scripts
+      # warning. The native legs above have already built and published by this point, and the
+      # checkout is thrown away after.
+      - name: Keep node-gyp out of the published manifest
+        run: rm binding.gyp
+
       - name: Publish
         run: node scripts/publish.mjs
         env:

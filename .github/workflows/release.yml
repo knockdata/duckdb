@@ -29,10 +29,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  # release.sh tags whatever package.json says, but a hand-pushed tag could disagree — and a
-  # mismatch would publish a version nobody asked for. Cheap to check once, up front.
+  # Everything cheap happens here, before a single runner starts compiling: check the tag, check
+  # how publishing will authenticate, and work out which packages this release still owes. The
+  # last one drives the matrix below, so a platform already on npm never starts a build at all —
+  # a duckdb build is 15-40 minutes, and a rerun of a half-published release would otherwise
+  # spend all of it just to be told npm already has that version.
   version:
     runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.plan.outputs.platforms }}
+      universal: ${{ steps.plan.outputs.universal }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -80,30 +86,19 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: What this release still owes
+        id: plan
+        run: node scripts/plan.mjs
+
+  # The matrix is whatever plan.mjs said is still missing, so the six platforms of a
+  # half-published release resolve to an empty list and this job is skipped outright.
   native:
     needs: version
+    if: needs.version.outputs.platforms != '[]'
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: macos-latest
-            platform: darwin
-            arch: arm64
-          - os: macos-latest
-            platform: darwin
-            arch: x64
-          - os: ubuntu-latest
-            platform: linux
-            arch: x64
-          - os: ubuntu-24.04-arm
-            platform: linux
-            arch: arm64
-          - os: windows-latest
-            platform: win32
-            arch: x64
-          - os: windows-11-arm
-            platform: win32
-            arch: arm64
+        include: ${{ fromJSON(needs.version.outputs.platforms) }}
     runs-on: ${{ matrix.os }}
     env:
       TARGET_PLATFORM: ${{ matrix.platform }}
@@ -139,9 +134,18 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # last: its optionalDependencies point at the versions the jobs above just published
+  # Last, because its optionalDependencies name the versions the jobs above just published.
+  #
+  # always() is what lets this run when `native` was skipped as having nothing to do — a skipped
+  # dependency would otherwise skip this too — while the result checks still stop it from
+  # publishing on top of a leg that actually failed.
   universal:
-    needs: native
+    needs: [version, native]
+    if: >-
+      always()
+      && needs.version.outputs.universal == 'true'
+      && needs.native.result != 'failure'
+      && needs.native.result != 'cancelled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

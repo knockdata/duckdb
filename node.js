@@ -9,7 +9,6 @@
 // Both open READ_ONLY on a single thread, so a user's file is never rewritten.
 import { createRequire } from 'node:module'
 import { addonPath, wasmPath } from './engineDir.js'
-import entriesApi from './entries.js'
 
 export default async function nodeDuckDB(source) {
 	const addon = loadAddon()
@@ -44,7 +43,6 @@ async function addonDuckDB(addon, source) {
 			addon.close(handle)
 			await cleanup()
 		},
-		...entriesApi(query),
 	}
 }
 
@@ -73,11 +71,10 @@ async function wasmDuckDB(source) {
 			exec: (sql) => core.query(handle, sql),
 			run: (sql) => core.query(handle, sql),
 			close: async () => core.close(handle),
-			...entriesApi(query),
-		}
+			}
 	}
 	else {
-		throw new Error('DuckDB engine missing: run server/duckdb/build.sh')
+		throw new Error('DuckDB engine missing: run @knockdata/duckdb/build.sh')
 	}
 }
 

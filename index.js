@@ -1,10 +1,11 @@
-// Universal duckdb entry. DuckDB(source) returns
-// { query, exec, run, close, getEntries, getEntry }. Node runs the native addon and falls
-// back to the wasm; the browser always runs the wasm. Both share the shapes in entries.js.
-// A duckdb file has schemas, so listing it is two levels deep:
-//   getEntries(source, dbPath, "")        → schema folders
-//   getEntries(source, dbPath, "main")    → that schema's tables and views
-//   getEntry(source, "main/users", 0, 20) → one page of rows
+// Universal duckdb entry. DuckDB(source) returns { query, exec, run, close }: SQL in, rows
+// out. Node runs the native addon and falls back to the wasm; the browser always runs the
+// wasm, and both answer the same SQL the same way.
+//
+// Listing what is in a database is deliberately not here. "A schema is a folder, a table looks
+// like this, here is a page of rows" is an application's shape, not duckdb's, and baking one
+// app's answer into the engine package only makes the next app fight it. duckdb_schemas() and
+// information_schema.tables are a query away.
 //
 // Nothing here is Node only, so this entry bundles for the browser: node.js and browser.js
 // are both dynamic imports. setEngineDir, addonPath and wasmPath live in engineDir.js and are
@@ -22,27 +23,5 @@ export default async function DuckDB(source) {
 	else {
 		const browserDuckDB = (await import(/* @vite-ignore */ './browser.js')).default
 		return await browserDuckDB(source)
-	}
-}
-
-// schema folders of a db, or the tables and views of one schema. Opened fresh per call.
-export async function getEntries(source, dbPath, entryPath = '') {
-	const db = await DuckDB(source)
-	try {
-		return await db.getEntries(dbPath, entryPath)
-	}
-	finally {
-		await db.close()
-	}
-}
-
-// one page of rows from "<schema>/<table>"
-export async function getEntry(source, entryPath, offset = 0, limit = 1000) {
-	const db = await DuckDB(source)
-	try {
-		return await db.getEntry(entryPath, offset, limit)
-	}
-	finally {
-		await db.close()
 	}
 }

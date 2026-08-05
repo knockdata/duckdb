@@ -3,7 +3,6 @@
 import fs from 'node:fs'
 import DuckdbModule from '../wasm/duckdb.js'
 import Core from '../wasm/core.js'
-import entriesApi from '../entries.js'
 import { wasmPath } from '../engineDir.js'
 import { check, checkEngine, samplePath } from './check.js'
 
@@ -19,25 +18,21 @@ if (binary) {
 		locateFile: () => binary,
 	}))
 
-	// the shared checks take (source) and open per call, so give them one that reuses the
-	// module and just reloads the bytes
+	// the same handle shape index.js returns, but wired straight to the wasm, so the shared
+	// checks exercise this engine rather than whichever one node.js would have picked
 	let next = 0
-	function open(source) {
+	async function open(source) {
 		next = next + 1
 		const handle = core.open(core.load(`db-${next}.duckdb`, fs.readFileSync(source)))
-		const query = async (sql) => core.query(handle, sql)
-		return { api: entriesApi(query), close: () => core.close(handle) }
-	}
-	async function getEntries(source, dbPath, entryPath) {
-		const db = open(source)
-		try { return await db.api.getEntries(dbPath, entryPath) } finally { db.close() }
-	}
-	async function getEntry(source, entryPath, offset, limit) {
-		const db = open(source)
-		try { return await db.api.getEntry(entryPath, offset, limit) } finally { db.close() }
+		return {
+			query: async (sql) => core.query(handle, sql),
+			exec: async (sql) => core.query(handle, sql),
+			run: async (sql) => core.query(handle, sql),
+			close: async () => core.close(handle),
+		}
 	}
 
-	await checkEngine(getEntries, getEntry, samplePath)
+	await checkEngine(open, samplePath)
 	check('fixture untouched', fs.existsSync(`${samplePath}.wal`), false)
 }
 else {

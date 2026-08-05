@@ -7,7 +7,6 @@
 // the db handle, never the 19 MB module.
 import DuckdbModule from './wasm/duckdb.js'
 import Core from './wasm/core.js'
-import entriesApi from './entries.js'
 
 let wasmBinary = null
 let core = null
@@ -30,7 +29,6 @@ export default async function browserDuckDB(source) {
 		exec: (sql) => duckdb.query(handle, sql),
 		run: (sql) => duckdb.query(handle, sql),
 		close: () => duckdb.close(handle),
-		...entriesApi(query),
 	}
 }
 

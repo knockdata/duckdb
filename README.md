@@ -23,39 +23,42 @@ lockfile. If no binary matches your platform, the wasm runs instead.
 
 ## Use
 
-A db file has schemas, so listing it is two levels deep.
-
 ```js
-import { getEntries, getEntry } from '@knockdata/duckdb'
+import DuckDB from '@knockdata/duckdb'
 
-const file = 'sales.duckdb'                        // a path in Node, a File or bytes in the browser
+const db = await DuckDB('sales.duckdb')            // a path in Node, a File or bytes in the browser
 
-await getEntries(file, 'sales.duckdb', '')         // → the schema folders
-// [ { name: 'main', objectKind: 'folder', path: 'sales.duckdb/main', … } ]
+await db.query('SELECT id, name FROM main.users LIMIT 2')
+// → [ { id: 1, name: 'Alice' }, { id: 2, name: 'Bob' } ]
 
-await getEntries(file, 'sales.duckdb', 'main')     // → that schema's tables and views
-// [ { name: 'users', type: 'table', objectKind: 'table', path: 'sales.duckdb/main/users', … } ]
-
-await getEntry(file, 'main/users', 0, 100)         // → one page of rows
-// { rows: [ { id: 1, name: 'Alice' } ], columns: ['id','name'], total: 3, offset: 0, limit: 100 }
+await db.close()
 ```
 
-Each call opens the file, reads, and closes again. **The file is opened READ_ONLY on a single
-thread**, so it is never rewritten and no `.wal` is left behind — the point of a viewer.
+`query(sql)` returns rows and `close()` releases the file. **The file is opened READ_ONLY on a
+single thread**, so it is never rewritten and no `.wal` is left beside it — the point of a viewer.
 
 Integers and floats come back as JavaScript numbers, booleans as booleans, and everything
 DuckDB has that JavaScript does not — dates, timestamps, decimals, hugeints, lists, structs —
 as the string DuckDB itself would print.
 
-Need raw SQL? The default export gives you a handle:
+### Listing what is in a database
+
+There is no `getEntries` here, on purpose. "A schema is a folder, a table looks like that, here
+is a page of rows" is an application's shape, not DuckDB's — bake one app's answer into the
+engine package and the next app spends its time fighting it. Ask DuckDB directly:
 
 ```js
-import DuckDB from '@knockdata/duckdb'
+await db.query(`SELECT schema_name FROM duckdb_schemas()
+  WHERE database_name = current_database() ORDER BY schema_name`)
 
-const db = await DuckDB('sales.duckdb')
-const rows = await db.query('SELECT count(*) AS n FROM main.users')
-await db.close()
+await db.query(`SELECT table_name, table_type FROM information_schema.tables
+  WHERE table_catalog = current_database() AND table_schema = 'main' ORDER BY table_name`)
+
+await db.query('SELECT * FROM "main"."users" LIMIT 100 OFFSET 0')
 ```
+
+Identifiers cannot be bound as parameters, so a schema or table name is interpolated — double
+any embedded quote (`name.replaceAll('"', '""')`) before you do.
 
 ### In the browser
 
@@ -125,8 +128,8 @@ amalgamation, it is ~1,600 C++17 translation units and cmake is required. The wa
 needs `emcc` on your `PATH`.
 
 What is actually ours is small: `napi/duckdb_napi.c` and `wasm/shim.c` are two thin C surfaces
-over DuckDB's C API, using about fifteen of its 548 functions, and `entries.js` turns those
-into the schema/table/row shapes above.
+over DuckDB's C API, using about fifteen of its 548 functions, plus the JS that picks an engine
+and hands back a handle.
 
 ## Versioning
 

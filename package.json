@@ -1,6 +1,6 @@
 {
 	"name": "@knockdata/duckdb",
-	"version": "1.5.5-r.3",
+	"version": "1.5.5-r.4",
 	"description": "A minimal DuckDB build for browsing database files — native addon and wasm from one source",
 	"type": "module",
 	"main": "index.js",
@@ -14,7 +14,6 @@
 		".": "./index.js",
 		"./browser.js": "./browser.js",
 		"./engineDir.js": "./engineDir.js",
-		"./entries.js": "./entries.js",
 		"./wasm/duckdb.js": "./wasm/duckdb.js",
 		"./wasm/duckdb.wasm": "./wasm/duckdb.wasm",
 		"./package.json": "./package.json"
@@ -25,7 +24,6 @@
 	},
 	"files": [
 		"index.js",
-		"entries.js",
 		"node.js",
 		"browser.js",
 		"engineDir.js",
@@ -35,12 +33,12 @@
 		"README.md"
 	],
 	"optionalDependencies": {
-		"@knockdata/duckdb-darwin-arm64": "1.5.5-r.3",
-		"@knockdata/duckdb-darwin-x64": "1.5.5-r.3",
-		"@knockdata/duckdb-linux-arm64": "1.5.5-r.3",
-		"@knockdata/duckdb-linux-x64": "1.5.5-r.3",
-		"@knockdata/duckdb-win32-arm64": "1.5.5-r.3",
-		"@knockdata/duckdb-win32-x64": "1.5.5-r.3"
+		"@knockdata/duckdb-darwin-arm64": "1.5.5-r.4",
+		"@knockdata/duckdb-darwin-x64": "1.5.5-r.4",
+		"@knockdata/duckdb-linux-arm64": "1.5.5-r.4",
+		"@knockdata/duckdb-linux-x64": "1.5.5-r.4",
+		"@knockdata/duckdb-win32-arm64": "1.5.5-r.4",
+		"@knockdata/duckdb-win32-x64": "1.5.5-r.4"
 	},
 	"engines": {
 		"node": ">=20"

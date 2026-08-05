@@ -1,5 +1,5 @@
-// What both engines must produce from test/sample.duckdb. Shared so the addon and the
-// wasm are held to exactly the same shapes — that equivalence is the whole design.
+// What both engines must answer for test/sample.duckdb. Shared so the addon and the wasm are
+// held to exactly the same results — that equivalence is the whole design.
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -15,24 +15,41 @@ export function check(label, actual, wanted) {
 	}
 }
 
-// getEntries/getEntry against sample.duckdb, whichever engine backs them
-export async function checkEngine(getEntries, getEntry, source) {
-	const schemas = await getEntries(source, 'sample.duckdb', '')
-	check('schemas', schemas.map(row => row.name), ['main'])
-	check('schema is a folder', schemas.map(row => row.objectKind), ['folder'])
+// open is (source) => a handle with query/exec/run/close, whichever engine backs it
+export async function checkEngine(open, source) {
+	const db = await open(source)
+	try {
+		const schemas = await db.query(
+			'SELECT schema_name FROM duckdb_schemas() WHERE database_name = current_database() ORDER BY schema_name')
+		check('schemas', schemas.map(row => row.schema_name), ['main'])
 
-	const tables = await getEntries(source, 'sample.duckdb', 'main')
-	check('tables', tables.map(row => row.name), ['users'])
-	check('table path', tables.map(row => row.path), ['sample.duckdb/main/users'])
+		const tables = await db.query(`SELECT table_name AS name, table_type AS type
+			FROM information_schema.tables
+			WHERE table_catalog = current_database() AND table_schema = 'main'
+			ORDER BY name`)
+		check('tables', tables.map(row => row.name), ['users'])
 
-	const page = await getEntry(source, 'main/users', 0, 2)
-	check('columns', page.columns, ['id', 'name', 'email', 'age'])
-	check('total', page.total, 3)
-	check('rows', page.rows, [
-		{ id: 1, name: 'Alice', email: 'alice@example.com', age: 30 },
-		{ id: 2, name: 'Bob', email: 'bob@example.com', age: 25 },
-	])
+		const columns = await db.query(`SELECT column_name FROM information_schema.columns
+			WHERE table_catalog = current_database()
+				AND table_schema = 'main' AND table_name = 'users'
+			ORDER BY ordinal_position`)
+		check('columns', columns.map(row => row.column_name), ['id', 'name', 'email', 'age'])
 
-	const empty = await getEntries(source, 'sample.duckdb', 'main/users/deeper')
-	check('too deep is empty', empty, [])
+		const total = Number((await db.query('SELECT COUNT(*) AS total FROM "main"."users"'))[0].total)
+		check('total', total, 3)
+
+		const page = await db.query('SELECT * FROM "main"."users" ORDER BY id LIMIT 2 OFFSET 0')
+		check('rows', page.map(row => `${row.id}:${row.name}:${row.age}`), ['1:Alice:30', '2:Bob:25'])
+
+		const offset = await db.query('SELECT * FROM "main"."users" ORDER BY id LIMIT 2 OFFSET 2')
+		check('offset', offset.map(row => row.name), ['Carol'])
+
+		// the types have to match between the engines, not just the values — comparing
+		// stringified rows would let a number and a bigint pass for each other
+		const types = (await db.query('SELECT id, name FROM "main"."users" LIMIT 1'))[0]
+		check('column types', Object.values(types).map(value => typeof value), ['number', 'string'])
+	}
+	finally {
+		await db.close()
+	}
 }

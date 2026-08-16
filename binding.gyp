@@ -10,47 +10,40 @@
 		# of C API calls reference, those initializers never run, and the first open segfaults.
 		# A node addon is a bundle, so an unresolved symbol links fine and crashes later.
 		#
-		# The paths are relative to build/, where node-gyp runs the linker, and the three
-		# archives are the ones cmake links into libduckdb itself, in the same order. They are
-		# spelled out per platform rather than shared through a gyp variable: a >@() reference
-		# inside conditions does not resolve, which is what broke the linux leg.
+		# The list is read out of the build tree by scripts/archives.mjs rather than written
+		# here: it is one archive per linked extension, in three different spellings, and a
+		# forgotten one does not fail the link — it fails the first query. The script also
+		# knows the order (loader first, duckdb_static last) and skips third_party, whose
+		# objects duckdb already folds into libduckdb_static.a.
 		"xcode_settings": {
 			"OTHER_CFLAGS": ["-O2"],
 			"OTHER_LDFLAGS": [
 				"-lc++",
-				"-Wl,-force_load,../duckdb/build/minimal/extension/libduckdb_generated_extension_loader.a",
-				"-Wl,-force_load,../duckdb/build/minimal/extension/core_functions/libcore_functions_extension.a",
-				"-Wl,-force_load,../duckdb/build/minimal/src/libduckdb_static.a"
+				"<!@(node scripts/archives.mjs minimal mac)"
 			]
 		},
 		"conditions": [
 			["OS=='linux'", {
 				"libraries": [
 					"-lstdc++",
-					"-Wl,--whole-archive",
-					"../duckdb/build/minimal/extension/libduckdb_generated_extension_loader.a",
-					"../duckdb/build/minimal/extension/core_functions/libcore_functions_extension.a",
-					"../duckdb/build/minimal/src/libduckdb_static.a",
-					"-Wl,--no-whole-archive"
+					"<!@(node scripts/archives.mjs minimal linux)"
 				]
 			}],
 			["OS=='win'", {
 				"libraries": [
-					"../duckdb/build/minimal/extension/Release/duckdb_generated_extension_loader.lib",
-					"../duckdb/build/minimal/extension/core_functions/Release/core_functions_extension.lib",
-					"../duckdb/build/minimal/src/Release/duckdb_static.lib",
+					"<!@(node scripts/archives.mjs minimal win)",
 					# duckdb asks the Restart Manager which process holds a locked file
 					# (RmStartSession and friends), so the addon has to link it too
-					"rstrtmgr.lib"
+					"rstrtmgr.lib",
+					# objectfs opens a socket to our web server
+					"ws2_32.lib"
 				],
 				"msvs_settings": {
 					"VCCLCompilerTool": { "Optimization": 2 },
 					# the MSVC spelling of force_load / --whole-archive
 					"VCLinkerTool": {
 						"AdditionalOptions": [
-							"/WHOLEARCHIVE:duckdb_generated_extension_loader.lib",
-							"/WHOLEARCHIVE:core_functions_extension.lib",
-							"/WHOLEARCHIVE:duckdb_static.lib"
+							"<!@(node scripts/archives.mjs minimal winwhole)"
 						]
 					}
 				}

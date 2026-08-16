@@ -14,14 +14,16 @@
 
 const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null
 
-// source: a file path (Node) or a File/bytes (browser). Opened read only.
-export default async function DuckDB(source) {
+// source: a file path (Node) or a File/bytes (browser). Opened read only unless
+// options.readOnly is false, which is what DuckDB(':memory:', { readOnly: false }) needs
+// to query parquet files and cloud objects rather than browse one database file.
+export default async function DuckDB(source, options = {}) {
 	if (isNode) {
 		const nodeDuckDB = (await import(/* @vite-ignore */ './node.js')).default
-		return await nodeDuckDB(source)
+		return await nodeDuckDB(source, options)
 	}
 	else {
 		const browserDuckDB = (await import(/* @vite-ignore */ './browser.js')).default
-		return await browserDuckDB(source)
+		return await browserDuckDB(source, options)
 	}
 }

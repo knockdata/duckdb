@@ -6,7 +6,7 @@
 // matrix, so those runners never start at all.
 //
 // Writes GitHub Actions outputs:
-//   platforms=[{os,platform,arch}, ...]   the legs still worth running
+//   platforms=[{os,platform,arch,vcpkgTriplet,rustTarget}, ...]   the legs still worth running
 //   universal=true|false                  whether the universal package still needs publishing
 //
 //   node scripts/plan.mjs                 prints them, for reading by eye

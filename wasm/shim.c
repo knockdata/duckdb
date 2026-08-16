@@ -14,11 +14,17 @@ typedef struct {
 	duckdb_connection connection;
 } Handle;
 
-// open a db file READ_ONLY on a single thread. Returns NULL on failure.
-EMSCRIPTEN_KEEPALIVE Handle *shim_open(const char *path) {
+// Open on a single thread. Returns NULL on failure.
+//
+// read_only is what browsing a db file wants, and it is the default everywhere above this.
+// Querying a parquet file wants the opposite: the file is staged into the emscripten
+// filesystem and the database itself is ":memory:", which READ_ONLY refuses to open at all.
+EMSCRIPTEN_KEEPALIVE Handle *shim_open(const char *path, int read_only) {
 	duckdb_config config;
 	duckdb_create_config(&config);
-	duckdb_set_config(config, "access_mode", "READ_ONLY");
+	if (read_only) {
+		duckdb_set_config(config, "access_mode", "READ_ONLY");
+	}
 	duckdb_set_config(config, "threads", "1");
 
 	Handle *handle = malloc(sizeof(Handle));

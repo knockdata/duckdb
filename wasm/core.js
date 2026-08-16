@@ -1,9 +1,10 @@
 // DuckDB primitive calls over an initialized Emscripten Module, the sibling of
 // server/sqlite/wasm/core.js. Core(Module) returns { load, open, close, query }.
 //
-// The db file is written into emscripten's in-memory filesystem first, then opened
-// by path — duckdb reaches for the file through ordinary POSIX calls, so MEMFS is
-// all it needs and there is no VFS to register.
+// The file is written into emscripten's in-memory filesystem first, then reached by
+// path — duckdb uses ordinary POSIX calls, so MEMFS is all it needs and there is no
+// VFS to register. That is true of a db file opened directly, and equally of a parquet
+// staged with load() and then named in a query against ':memory:'.
 
 // duckdb_type values that map onto a JavaScript number or boolean. Everything
 // duckdb has and JavaScript does not — dates, timestamps, decimals, hugeints,
@@ -28,9 +29,10 @@ export default function Core(Module) {
 		return name
 	}
 
-	function open(path) {
+	// readOnly false is what ':memory:' needs — see the comment on shim_open
+	function open(path, readOnly = true) {
 		const pathPointer = stringToPointer(path)
-		const handle = Module._shim_open(pathPointer)
+		const handle = Module._shim_open(pathPointer, readOnly ? 1 : 0)
 		Module._free(pathPointer)
 		if (handle) {
 			return handle

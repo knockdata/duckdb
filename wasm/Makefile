@@ -1,8 +1,7 @@
 BUILD = ../duckdb/build/wasm
-LIBS = \
-    $(BUILD)/extension/libduckdb_generated_extension_loader.a \
-    $(BUILD)/extension/core_functions/libcore_functions_extension.a \
-    $(BUILD)/src/libduckdb_static.a
+# one archive per linked extension, in link order, read out of the build tree — see the
+# comment in scripts/archives.mjs for why this is generated rather than written out
+LIBS = $(shell node ../scripts/archives.mjs wasm paths)
 
 # duckdb registers types and functions from static initializers spread across the
 # archives, so every object has to be linked in, not just the referenced ones.
@@ -16,8 +15,13 @@ RUNTIME = FS,UTF8ToString,stringToUTF8,lengthBytesUTF8,HEAPU8
 
 # no SINGLE_FILE: base64-inlining a 20 MB wasm would make the JS unparseable. The
 # .wasm is fetched beside the .js, which is what the /duckdb/ route serves.
+# shim.c is C, but everything it links against — duckdb and its extensions — is C++.
+# emscripten 5 worked that out on its own; 6 links a .c entry point as C by default and
+# fails on every C++ symbol in the archives, so the C++ runtime is asked for explicitly.
+# emcc rather than em++ still compiles shim.c as C, which is what it is.
 EM_FLAGS = \
     -O2 \
+    -sDEFAULT_TO_CXX \
     -fwasm-exceptions \
     -sWASM=1 \
     -sWASM_BIGINT=1 \

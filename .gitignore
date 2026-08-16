@@ -1,4 +1,5 @@
 duckdb
+vcpkg
 build
 dist
 node_modules

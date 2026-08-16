@@ -10,10 +10,10 @@
 import { createRequire } from 'node:module'
 import { addonPath, wasmPath } from './engineDir.js'
 
-export default async function nodeDuckDB(source) {
+export default async function nodeDuckDB(source, options = {}) {
 	const addon = loadAddon()
 	if (addon) {
-		return await addonDuckDB(addon, source)
+		return await addonDuckDB(addon, source, options)
 	}
 	else {
 		return await wasmDuckDB(source)
@@ -30,9 +30,9 @@ function loadAddon() {
 	}
 }
 
-async function addonDuckDB(addon, source) {
+async function addonDuckDB(addon, source, options = {}) {
 	const { path, cleanup } = await sourcePath(source)
-	const handle = addon.open(path)
+	const handle = addon.open(path, options)
 	const query = async (sql) => addon.query(handle, sql)
 
 	return {

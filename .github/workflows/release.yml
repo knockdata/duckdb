@@ -113,9 +113,35 @@ jobs:
       - run: npm install -g npm@latest
         shell: bash
 
+      # delta builds delta-kernel-rs, which is Rust. The windows-arm and linux-arm runners
+      # do not all ship a toolchain, and the ones that do ship whichever one they please.
+      #
+      # targets matters on the macos x64 leg, which cross-builds on an arm64 runner: rustup
+      # installs the host target only, so without this cargo builds an arm64 kernel and the
+      # x86_64 link fails on every delta symbol.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rustTarget }}
+
+      # iceberg, avro and excel pull their dependencies from vcpkg, and building those is
+      # most of a cold run. The cache is keyed on the merged manifest's inputs — the
+      # extension set — so it survives every change that is not an extension change.
+      - name: Cache the vcpkg build
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg
+            ~/.cache/vcpkg/archives
+            ~/AppData/Local/vcpkg/archives
+          key: vcpkg-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('extension/config-native.cmake') }}
+
       - name: Build the engine and the addon
         shell: bash
         run: bash build.sh
+        env:
+          # macos and linux runners cross-build, so the triplet has to follow TARGET_ARCH
+          # rather than the runner's own architecture
+          VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkgTriplet }}
 
       - name: Check it opens a database
         shell: bash

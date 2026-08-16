@@ -18,16 +18,24 @@ export function setWasmBinary(bytes) {
 	wasmBinary = bytes
 }
 
-export default async function browserDuckDB(source) {
+// source is a File or bytes to open as a database, or the string ':memory:' for a database
+// with nothing in it — which is what querying a parquet or a csv wants. Those are not
+// databases, so there is nothing to open: stage the bytes with load() and name them in the
+// SQL. Opened read only unless options.readOnly is false, and ':memory:' requires that.
+export default async function browserDuckDB(source, options = {}) {
 	const duckdb = await getCore()
-	const path = await loadSource(duckdb, source)
-	const handle = duckdb.open(path)
+	const memory = source === ':memory:'
+	const path = memory ? ':memory:' : await loadSource(duckdb, source)
+	const handle = duckdb.open(path, options.readOnly ?? !memory)
 	const query = async (sql) => duckdb.query(handle, sql)
 
 	return {
 		query,
 		exec: (sql) => duckdb.query(handle, sql),
 		run: (sql) => duckdb.query(handle, sql),
+		// put a file where the SQL can name it: load('sales.parquet', bytes) makes
+		// SELECT * FROM 'sales.parquet' work against this handle
+		load: async (name, bytes) => duckdb.load(name, await toArrayBuffer(bytes)),
 		close: () => duckdb.close(handle),
 	}
 }
@@ -35,7 +43,17 @@ export default async function browserDuckDB(source) {
 async function getCore() {
 	if (core === null) {
 		if (wasmBinary) {
-			core = Core(await DuckdbModule({ wasmBinary }))
+			// instantiateWasm, not the `wasmBinary` module option: emscripten 6 stopped
+			// reading Module["wasmBinary"], and without this the glue quietly fetches
+			// duckdb.wasm beside itself — downloading 27 MB a second time, or failing when
+			// that URL is not served. This hook hands it the bytes the embedder already has.
+			core = Core(await DuckdbModule({
+				instantiateWasm(imports, done) {
+					WebAssembly.instantiate(wasmBinary, imports)
+						.then(result => done(result.instance, result.module))
+					return {}
+				},
+			}))
 		}
 		else {
 			throw new Error('duckdb wasm not loaded: call setWasmBinary(bytes) with wasm/duckdb.wasm')

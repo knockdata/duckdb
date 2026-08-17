@@ -36,10 +36,16 @@ target=${1:-native}
 #
 # The test is $OS rather than `uname`, which names the bash flavour: Git Bash is MINGW64 on
 # x64 and CLANGARM64 on arm, and the arm runner is one of the two that failed.
+#
+# The same block sets the rust CRT, because everything in the addon has to agree on one:
+# duckdb forces /MT, node-gyp builds addons /MT, and scripts/platforms.mjs asks vcpkg for a
+# `-static` triplet. cargo alone still defaults to the DLL runtime, and a delta kernel built
+# that way ends the addon link on unresolved __imp_ CRT symbols.
 if [ "$OS" = "Windows_NT" ]; then
 	export GIT_CONFIG_COUNT=1
 	export GIT_CONFIG_KEY_0=core.longpaths
 	export GIT_CONFIG_VALUE_0=true
+	export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static"
 fi
 
 # A clone left over from an earlier version would silently build the wrong DuckDB, so the
@@ -178,8 +184,20 @@ else
 		-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
 		-DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG -fvisibility=hidden -fvisibility-inlines-hidden" \
 		../..)
+	# Only the archives the addon links, named by archives.mjs from the loader cmake just
+	# generated, rather than the default target. The default one also builds a loadable
+	# .duckdb_extension per extension and a shared libduckdb — neither is shipped, the shared
+	# library compiles all of duckdb a second time, and on Windows the loadables are where the
+	# build dies: they link the vcpkg aws libraries, whose CRT imports (__imp__popen,
+	# __imp__aligned_malloc) have nothing to resolve against in that link.
+	#
 	# not "make": on Windows cmake writes a Visual Studio solution, not a Makefile
-	cmake --build duckdb/build/minimal --config Release --parallel "$jobs"
+	targets=()
+	while read -r name; do
+		targets+=("$name")
+	done < <(node scripts/archives.mjs minimal targets)
+	echo "building: ${targets[*]}"
+	cmake --build duckdb/build/minimal --config Release --parallel "$jobs" --target "${targets[@]}"
 
 	# The addon has to target the same architecture the engine was just built for. Without
 	# this, a mac x64 cross build links arm64 object code against x86_64 archives, the linker

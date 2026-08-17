@@ -6,6 +6,7 @@
 //   node scripts/archives.mjs minimal win      for libraries
 //   node scripts/archives.mjs minimal winwhole for VCLinkerTool.AdditionalOptions
 //   node scripts/archives.mjs wasm   paths     bare paths, for wasm/Makefile
+//   node scripts/archives.mjs minimal targets  the cmake targets that produce them, for build.sh
 //
 // This used to be three hardcoded lists inside binding.gyp — one per platform — holding
 // three paths each. With the extensions we link now it is a dozen duckdb archives plus
@@ -125,8 +126,24 @@ if (whole.length < 2) {
 	process.exit(1)
 }
 
+// The cmake targets behind `whole`, so build.sh can build exactly these instead of the
+// default target. Everything else in that target is something we never ship: a loadable
+// .duckdb_extension per extension, and a shared libduckdb that compiles all of duckdb a
+// second time. The loadables are also where a windows build dies — they link the vcpkg aws
+// libraries, whose CRT imports (__imp__popen, __imp__aligned_malloc) go unresolved there.
+function targets() {
+	return [
+		"duckdb_generated_extension_loader",
+		...linkedExtensions().map(name => `${name}_extension`),
+		"duckdb_static",
+	]
+}
+
 function spell(style) {
-	if (style === "mac") {
+	if (style === "targets") {
+		return targets()
+	}
+	else if (style === "mac") {
 		return [...whole.map(archive => `-Wl,-force_load,${archive}`), ...deps]
 	}
 	else if (style === "linux") {

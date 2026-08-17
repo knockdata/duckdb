@@ -133,12 +133,17 @@ from wasm builds outright, the table formats would push a browser download well 
 table for each one — a 452 MB static archive against ~42 MB for every other extension put
 together, which roughly doubled the addon.
 
-**Nothing here reaches the network on its own.** `httpfs`, `aws` and `azure` are absent and the
-built-in httplib is compiled out (`DISABLE_BUILTIN_HTTPLIB=1`). Instead our own `objectfs`
-extension claims `s3://`, `gs://`, `gcs://`, `az://`, `abfs://` and `abfss://` and answers them
-by asking the explorer's web server, which already holds the sign-in and the cache. It talks to
-`127.0.0.1:8080` unless the `objectfs_server` setting or the `OBJECTFS_SERVER` environment
-variable says otherwise.
+**No file this engine reads comes off the network by itself.** `httpfs`, `aws` and `azure` are
+absent and the built-in httplib is compiled out (`DISABLE_BUILTIN_HTTPLIB=1`), so there is no
+filesystem here that speaks HTTP. Our own `objectfs` extension claims `s3://`, `gs://`, `gcs://`,
+`az://`, `abfs://` and `abfss://` instead, and answers them by asking the explorer's web server,
+which already holds the sign-in and the cache. It talks to `127.0.0.1:8080` unless the
+`objectfs_server` setting or the `OBJECTFS_SERVER` environment variable says otherwise.
+
+One exception worth naming: `iceberg` links curl and the AWS SDK, because
+`find_package(AWSSDK REQUIRED)` in duckdb-iceberg is unconditional. That client is for REST, Glue
+and S3Tables catalogs, and it runs only if someone `ATTACH`es one — reading an Iceberg table by
+path goes through `objectfs` like everything else.
 
 ## Why this exists
 

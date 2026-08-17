@@ -54,7 +54,13 @@
 					"shlwapi.lib",
 					"advapi32.lib",
 					"wldap32.lib",
-					"normaliz.lib"
+					"normaliz.lib",
+					# and what rust's own std calls: delta_kernel_ffi.lib asks for
+					# NtCreateNamedPipeFile, which lives in ntdll, and WaitOnAddress, which
+					# lives in synchronization. cargo names these on a link line of its own,
+					# which a staticlib linked in from outside never gets.
+					"ntdll.lib",
+					"Synchronization.lib"
 				],
 				"msvs_settings": {
 					"VCCLCompilerTool": { "Optimization": 2 },

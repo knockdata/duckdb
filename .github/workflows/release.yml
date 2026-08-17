@@ -143,6 +143,24 @@ jobs:
           # rather than the runner's own architecture
           VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkgTriplet }}
 
+      # duckdb-delta builds delta-kernel-rs through ExternalProject with LOG_BUILD ON, which
+      # sends everything cargo says to a file beside the stamps. A failure there reaches the
+      # console as "Command failed: 1" and nothing else, so print the file the message points at.
+      - name: What delta-kernel-rs said
+        if: failure()
+        shell: bash
+        run: |
+          shopt -s nullglob
+          logs=(duckdb/build/minimal/rust/src/delta_kernel-stamp/*.log)
+          if [ "${#logs[@]}" -gt 0 ]; then
+            for log in "${logs[@]}"; do
+              echo "=== $log"
+              cat "$log"
+            done
+          else
+            echo "no delta_kernel stamp logs; the build failed somewhere else"
+          fi
+
       - name: Check it opens a database
         shell: bash
         run: node test/addon.js

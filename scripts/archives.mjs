@@ -28,8 +28,12 @@
 // libduckdb_static.a itself, so listing them again would double every symbol.
 import { readdirSync, existsSync, statSync, readFileSync } from "node:fs"
 import { join, basename } from "node:path"
+import { fileURLToPath } from "node:url"
 
-const here = new URL("..", import.meta.url).pathname
+// fileURLToPath, never url.pathname: on Windows that returns "/D:/a/duckdb", the leading slash
+// makes every join below "\D:\a\duckdb", nothing exists, and the script reports an engine that
+// was in fact built fine
+const here = fileURLToPath(new URL("..", import.meta.url))
 const target = process.argv[2] === "wasm" ? "wasm" : "minimal"
 const style = process.argv[3] || "paths"
 const build = join(here, "duckdb", "build", target)

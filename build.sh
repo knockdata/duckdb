@@ -196,8 +196,15 @@ else
 	while read -r name; do
 		targets+=("$name")
 	done < <(node scripts/archives.mjs minimal targets)
-	echo "building: ${targets[*]}"
-	cmake --build duckdb/build/minimal --config Release --parallel "$jobs" --target "${targets[@]}"
+	# a process substitution keeps its own exit code to itself, so an empty list is how a failed
+	# archives.mjs arrives here — and cmake answers that with its whole usage message
+	if [ "${#targets[@]}" -gt 0 ]; then
+		echo "building: ${targets[*]}"
+		cmake --build duckdb/build/minimal --config Release --parallel "$jobs" --target "${targets[@]}"
+	else
+		echo "archives.mjs named no targets for duckdb/build/minimal" >&2
+		exit 1
+	fi
 
 	# The addon has to target the same architecture the engine was just built for. Without
 	# this, a mac x64 cross build links arm64 object code against x86_64 archives, the linker

@@ -34,28 +34,39 @@ duckdb_extension_load(excel
     INCLUDE_DIR src/excel/include
 )
 
-# iceberg reads avro manifests, so avro comes along whether or not it is asked for
+# avro reads .avro files, and it is also how an Iceberg table gets read at all: its manifests
+# are avro, so read_avro is what the explorer's own iceberg reader parses them with.
 duckdb_extension_load(avro
     GIT_URL https://github.com/duckdb/duckdb-avro
     GIT_TAG f9d590297485f0318f480372c70bdd852826e258
 )
 
-duckdb_extension_load(iceberg
-    GIT_URL https://github.com/duckdb/duckdb-iceberg
-    GIT_TAG 45163a28e0ed6a2071a82a1bf1dd432d0216cf9c
-)
+# iceberg is deliberately absent, for the same reason as delta. find_package(AWSSDK REQUIRED) in
+# duckdb-iceberg is unconditional, so the extension drags in the whole AWS SDK, curl and openssl —
+# ~50 MB of archives, the longest pole in every CI build, and nine windows import libraries — all
+# to support REST, Glue and S3Tables catalogs that this app never asks for. Our tables arrive as a
+# path through objectfs.
+#
+# What is left after those catalogs is metadata.json -> manifest list -> manifests -> data files,
+# and duckdb reads avro. So rock2/server/src/duckdb/iceberg-*.js walks that chain and rewrites the
+# query into read_parquet(schema=...) over the live files, position deletes, equality deletes and
+# v3 puffin deletion vectors included. rock2/server/test/iceberg-golden.json holds this engine's
+# old answers, to check that it still reads them the same.
 
 duckdb_extension_load(ducklake
     GIT_URL https://github.com/duckdb/ducklake
     GIT_TAG d8a1881e22516ea3d186d73e83c65fe5bd1a1dc4
 )
 
-# delta builds delta-kernel-rs, so this one needs a rust toolchain on the machine
-duckdb_extension_load(delta
-    GIT_URL https://github.com/duckdb/duckdb-delta
-    GIT_TAG 45c40878601b54b4188b09e08732fe0d576ad222
-    SUBMODULES extension-ci-tools
-)
+# delta is deliberately absent. It is a C++ shell over delta-kernel-rs, so it needs a rust
+# toolchain, a 4.3 GB build tree and a 103 MB static archive — and through rustls it pulls in
+# aws-lc-sys, a BoringSSL fork built by cmake that never once compiled on windows arm64.
+#
+# All of that to answer one question: which parquet files in the folder does the table consist
+# of? _delta_log answers it in json, so the explorer's own server replays it and rewrites the
+# query into a read_parquet over the live files — see rock2/server/src/duckdb/delta-log.js.
+# Partition values, column mapping and deletion vectors are handled there too, and
+# rock2/server/test/delta.test.js holds this engine's old answers to check that against.
 
 # ours: s3:// gs:// az:// resolved through the explorer's own connectors
 duckdb_extension_load(objectfs SOURCE_DIR ${OBJECTFS_DIR})

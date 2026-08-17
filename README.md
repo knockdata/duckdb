@@ -5,7 +5,7 @@ ducklake table, local or in a bucket. One source produces both a native N-API ad
 module, so the same `query(sql)` works in Node and in the browser.
 
 ```
-native addon   87 MB   11 extensions linked in statically
+native addon   37 MB   9 extensions linked in statically
 wasm           26 MB   5 extensions, single threaded
 glue           72 KB   wasm/duckdb.js, bundles with your app
 ```
@@ -122,28 +122,37 @@ Extension loading is compiled out (`DISABLE_EXTENSION_LOAD=1`), so the engine ca
 | | native | wasm |
 |---------------------------------------------|--------|------|
 | core_functions, parquet, json, icu, inet | yes | yes |
-| excel, avro, iceberg, ducklake, delta | yes | — |
+| excel, avro, ducklake | yes | — |
 | objectfs (ours) | yes | — |
 
-The wasm set stops there for three separate reasons: upstream excludes `delta` and `encodings`
-from wasm builds outright, the table formats would push a browser download well past 26 MB, and
-`objectfs` needs a socket that a wasm build does not have.
+The wasm set stops there for two reasons: the table formats would push a browser download well
+past 26 MB, and `objectfs` needs a socket that a wasm build does not have.
 
-`encodings` is absent from both. It reads CSVs in legacy code pages and carries a conversion
-table for each one — a 452 MB static archive against ~42 MB for every other extension put
-together, which roughly doubled the addon.
+Three are absent from both. `encodings` reads CSVs in legacy code pages and carries a
+conversion table for each one — a 452 MB static archive against 33 MB for every other extension
+put together, which roughly doubled the addon.
 
-**No file this engine reads comes off the network by itself.** `httpfs`, `aws` and `azure` are
-absent and the built-in httplib is compiled out (`DISABLE_BUILTIN_HTTPLIB=1`), so there is no
-filesystem here that speaks HTTP. Our own `objectfs` extension claims `s3://`, `gs://`, `gcs://`,
-`az://`, `abfs://` and `abfss://` instead, and answers them by asking the explorer's web server,
-which already holds the sign-in and the cache. It talks to `127.0.0.1:8080` unless the
+`delta` and `iceberg` are absent for the same reason, which is what they cost to answer one
+question. `delta` is a C++ shell over delta-kernel-rs: a rust toolchain on every build machine, a
+4.3 GB build tree, a 103 MB static archive, and through rustls the `aws-lc-sys` BoringSSL fork that
+never once compiled on windows arm64. `iceberg` calls `find_package(AWSSDK REQUIRED)`
+unconditionally, so it brings the AWS SDK, curl and openssl — about 50 MB of archives and the
+longest pole in every build — for REST, Glue and S3Tables catalogs.
+
+The question both answer is *which parquet files in this folder is the table made of*, and both
+write the answer down: Delta in `_delta_log`, Iceberg through `metadata.json` → manifest list →
+manifests, which are avro and therefore readable by the `avro` extension above. So the reader that
+consumes this package walks those itself and queries the live files with `read_parquet` — schema
+evolution by field id, partition values, position and equality deletes, deletion vectors in both
+formats. Dropping the two extensions took the addon from 87 MB to 37 MB, and the vcpkg libraries
+underneath it from about forty to eight.
+
+**No file this engine reads comes off the network by itself, and there is no exception.** `httpfs`,
+`aws` and `azure` are absent, the built-in httplib is compiled out (`DISABLE_BUILTIN_HTTPLIB=1`),
+and with `iceberg` went the last HTTP client of any kind. The one socket left is `objectfs`, which
+claims `s3://`, `gs://`, `gcs://`, `az://`, `abfs://` and `abfss://` and answers them by asking the
+explorer's web server, which already holds the sign-in and the cache. It talks to `127.0.0.1:8080` unless the
 `objectfs_server` setting or the `OBJECTFS_SERVER` environment variable says otherwise.
-
-One exception worth naming: `iceberg` links curl and the AWS SDK, because
-`find_package(AWSSDK REQUIRED)` in duckdb-iceberg is unconditional. That client is for REST, Glue
-and S3Tables catalogs, and it runs only if someone `ATTACH`es one — reading an Iceberg table by
-path goes through `objectfs` like everything else.
 
 ## Why this exists
 
@@ -152,7 +161,7 @@ The official `@duckdb/node-bindings` ships a 117 MB `libduckdb.dylib` — a *fat
 and it comes with extension loading and an HTTP client compiled in. Our build is the same engine
 rebuilt at the pinned upstream tag with the extension set above, DuckDB's own `SMALLER_BINARY`,
 `-fvisibility=hidden`, no shell and no tests. The native artifact is a single self-contained
-`.node` with the engine and all eleven extensions linked in — no `.dylib` to ship beside it,
+`.node` with the engine and all nine extensions linked in — no `.dylib` to ship beside it,
 nothing downloaded on first use, and no code path that could load an extension we did not build.
 
 The API is the other half of the point. Reading a file through the official client means
@@ -171,8 +180,8 @@ no `version=` to edit — it reads `package.json`), so nothing is vendored here.
 amalgamation: it is ~1,600 C++17 translation units, cmake is required, and with this extension
 set a cold build takes well over an hour.
 
-Three things have to be on the machine: **cmake**, a **rust toolchain** (`delta` builds
-delta-kernel-rs), and **emcc** for the wasm target. vcpkg is bootstrapped by the script itself if
+Two things have to be on the machine: **cmake**, and **emcc** for the wasm target. vcpkg is
+bootstrapped by the script itself if
 `VCPKG_TOOLCHAIN_PATH` is unset — `iceberg`, `avro` and `excel` declare vcpkg dependencies, and
 the script runs DuckDB's own configure pass first to merge their manifests into one.
 `TARGET_ARCH` cross-builds on macOS, where one Xcode targets both architectures.

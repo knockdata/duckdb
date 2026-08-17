@@ -21,7 +21,7 @@
 //   whole      duckdb and its extensions, every object linked in whether or not anything
 //              references it, because their registrations live in static initializers
 //   deps       what those extensions call into — openssl, curl, the aws sdk, avro,
-//              minizip, delta's rust kernel. Linked normally: whole-archive here would
+//              minizip. Linked normally: whole-archive here would
 //              add tens of megabytes of code nothing calls.
 //
 // third_party is deliberately absent from both: duckdb folds those object files into
@@ -122,22 +122,6 @@ function vcpkgLibraries() {
 	return found
 }
 
-// delta is a C++ shell over delta-kernel-rs, and cargo puts its staticlib under a target
-// triple directory when cross-compiling and directly under target/release when not. The
-// deps/ and build/ subdirectories hold cargo's intermediates, which are not it.
-function rustLibraries() {
-	const root = join(build, "rust", "src", "delta_kernel", "target")
-	const releases = [join(root, "release"), ...directoriesIn(root).map(triple => join(root, triple, "release"))]
-	return releases
-		.map(release => archiveIn(release, "delta_kernel_ffi"))
-		.filter(Boolean)
-		.slice(0, 1)
-}
-
-function dependencyLibraries() {
-	return [...vcpkgLibraries(), ...rustLibraries()]
-}
-
 // The cmake targets behind the archives, so build.sh can build exactly these instead of the
 // default target. Everything else in that target is something we never ship: a loadable
 // .duckdb_extension per extension, and a shared libduckdb that compiles all of duckdb a
@@ -156,24 +140,24 @@ function spell(style) {
 		return targets()
 	}
 	else if (style === "mac") {
-		return [...wholeArchives().map(archive => `-Wl,-force_load,${archive}`), ...dependencyLibraries()]
+		return [...wholeArchives().map(archive => `-Wl,-force_load,${archive}`), ...vcpkgLibraries()]
 	}
 	else if (style === "linux") {
 		// --start-group, because these libraries reference each other in both directions
 		// and a single pass over them in any one order leaves something unresolved
 		return [
 			"-Wl,--whole-archive", ...wholeArchives(), "-Wl,--no-whole-archive",
-			"-Wl,--start-group", ...dependencyLibraries(), "-Wl,--end-group",
+			"-Wl,--start-group", ...vcpkgLibraries(), "-Wl,--end-group",
 		]
 	}
 	else if (style === "win") {
-		return [...wholeArchives(), ...dependencyLibraries()]
+		return [...wholeArchives(), ...vcpkgLibraries()]
 	}
 	else if (style === "winwhole") {
 		return wholeArchives().map(archive => `/WHOLEARCHIVE:${basename(archive)}`)
 	}
 	else {
-		return [...wholeArchives(), ...dependencyLibraries()]
+		return [...wholeArchives(), ...vcpkgLibraries()]
 	}
 }
 

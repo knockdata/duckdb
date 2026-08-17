@@ -1,7 +1,7 @@
 {
 	"name": "@knockdata/duckdb",
-	"version": "1.5.5-r.5",
-	"description": "A minimal DuckDB build for browsing database files — native addon and wasm from one source",
+	"version": "1.5.5-r.6",
+	"description": "DuckDB for querying data files — native addon and wasm from one source",
 	"type": "module",
 	"main": "index.js",
 	"license": "MIT",
@@ -33,12 +33,12 @@
 		"README.md"
 	],
 	"optionalDependencies": {
-		"@knockdata/duckdb-darwin-arm64": "1.5.5-r.5",
-		"@knockdata/duckdb-darwin-x64": "1.5.5-r.5",
-		"@knockdata/duckdb-linux-arm64": "1.5.5-r.5",
-		"@knockdata/duckdb-linux-x64": "1.5.5-r.5",
-		"@knockdata/duckdb-win32-arm64": "1.5.5-r.5",
-		"@knockdata/duckdb-win32-x64": "1.5.5-r.5"
+		"@knockdata/duckdb-darwin-arm64": "1.5.5-r.6",
+		"@knockdata/duckdb-darwin-x64": "1.5.5-r.6",
+		"@knockdata/duckdb-linux-arm64": "1.5.5-r.6",
+		"@knockdata/duckdb-linux-x64": "1.5.5-r.6",
+		"@knockdata/duckdb-win32-arm64": "1.5.5-r.6",
+		"@knockdata/duckdb-win32-x64": "1.5.5-r.6"
 	},
 	"engines": {
 		"node": ">=20"

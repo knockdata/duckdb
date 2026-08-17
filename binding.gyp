@@ -36,31 +36,7 @@
 					# (RmStartSession and friends), so the addon has to link it too
 					"rstrtmgr.lib",
 					# objectfs opens a socket to our web server
-					"ws2_32.lib",
-					# What the vcpkg libraries call into. cmake passes these on its own link
-					# lines, but the addon links their archives directly and never sees one:
-					# the aws sdk names Userenv, version, Wininet and winhttp as its platform
-					# dependencies (it prints them at configure time), aws-c-cal and openssl
-					# want bcrypt, crypt32, secur32 and ncrypt, and curl wants wldap32 and
-					# normaliz. An import library nothing references costs nothing.
-					"Userenv.lib",
-					"version.lib",
-					"Wininet.lib",
-					"winhttp.lib",
-					"bcrypt.lib",
-					"crypt32.lib",
-					"secur32.lib",
-					"ncrypt.lib",
-					"shlwapi.lib",
-					"advapi32.lib",
-					"wldap32.lib",
-					"normaliz.lib",
-					# and what rust's own std calls: delta_kernel_ffi.lib asks for
-					# NtCreateNamedPipeFile, which lives in ntdll, and WaitOnAddress, which
-					# lives in synchronization. cargo names these on a link line of its own,
-					# which a staticlib linked in from outside never gets.
-					"ntdll.lib",
-					"Synchronization.lib"
+					"ws2_32.lib"
 				],
 				"msvs_settings": {
 					"VCCLCompilerTool": { "Optimization": 2 },

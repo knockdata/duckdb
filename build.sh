@@ -36,16 +36,10 @@ target=${1:-native}
 #
 # The test is $OS rather than `uname`, which names the bash flavour: Git Bash is MINGW64 on
 # x64 and CLANGARM64 on arm, and the arm runner is one of the two that failed.
-#
-# The same block sets the rust CRT, because everything in the addon has to agree on one:
-# duckdb forces /MT, node-gyp builds addons /MT, and scripts/platforms.mjs asks vcpkg for a
-# `-static` triplet. cargo alone still defaults to the DLL runtime, and a delta kernel built
-# that way ends the addon link on unresolved __imp_ CRT symbols.
 if [ "$OS" = "Windows_NT" ]; then
 	export GIT_CONFIG_COUNT=1
 	export GIT_CONFIG_KEY_0=core.longpaths
 	export GIT_CONFIG_VALUE_0=true
-	export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static"
 fi
 
 # A clone left over from an earlier version would silently build the wrong DuckDB, so the
@@ -155,10 +149,8 @@ else
 	merge_vcpkg_manifest
 
 	# OSX_BUILD_ARCH, not CMAKE_OSX_ARCHITECTURES: duckdb forces the cmake variable from this
-	# one anyway, and it is the name the extensions read. delta picks its rust target from
-	# OSX_BUILD_ARCH alone — set only the cmake variable and cargo builds delta-kernel-rs for
-	# the runner's own arm64 while everything around it compiles x86_64, which links as
-	# "symbol(s) not found for architecture x86_64" an hour in.
+	# one anyway, and it is the name an out-of-tree extension reads when it has to know which
+	# architecture is being built for.
 	osx_arch=()
 	if [ -n "$TARGET_ARCH" ] && [ "$(uname)" = "Darwin" ]; then
 		if [ "$TARGET_ARCH" = "x64" ]; then

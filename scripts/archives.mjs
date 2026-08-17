@@ -87,11 +87,22 @@ function extensionArchives() {
 // everything they call into, so it goes last. dummy_static_extension_loader is duckdb's
 // own placeholder for a build with no extensions and is never one of these, because it
 // lives directly under extension/ rather than in a per-extension directory.
-const whole = [
-	archiveIn(join(build, "extension"), "duckdb_generated_extension_loader"),
-	...extensionArchives(),
-	archiveIn(join(build, "src"), "duckdb_static"),
-].filter(Boolean)
+//
+// Read when a style asks for it, never at import: `targets` runs BEFORE the build, when none
+// of these archives exists yet, and the check below would call a tree that is about to be
+// built an empty one.
+function wholeArchives() {
+	const found = [
+		archiveIn(join(build, "extension"), "duckdb_generated_extension_loader"),
+		...extensionArchives(),
+		archiveIn(join(build, "src"), "duckdb_static"),
+	].filter(Boolean)
+	if (found.length < 2) {
+		console.error(`no duckdb archives under ${build} — run build.sh first`)
+		process.exit(1)
+	}
+	return found
+}
 
 // Whatever vcpkg was asked for by the extensions' merged manifest, whichever triplet it
 // resolved to. There is exactly one triplet per build tree.
@@ -123,14 +134,11 @@ function rustLibraries() {
 		.slice(0, 1)
 }
 
-const deps = [...vcpkgLibraries(), ...rustLibraries()]
-
-if (whole.length < 2) {
-	console.error(`no duckdb archives under ${build} — run build.sh first`)
-	process.exit(1)
+function dependencyLibraries() {
+	return [...vcpkgLibraries(), ...rustLibraries()]
 }
 
-// The cmake targets behind `whole`, so build.sh can build exactly these instead of the
+// The cmake targets behind the archives, so build.sh can build exactly these instead of the
 // default target. Everything else in that target is something we never ship: a loadable
 // .duckdb_extension per extension, and a shared libduckdb that compiles all of duckdb a
 // second time. The loadables are also where a windows build dies — they link the vcpkg aws
@@ -148,24 +156,24 @@ function spell(style) {
 		return targets()
 	}
 	else if (style === "mac") {
-		return [...whole.map(archive => `-Wl,-force_load,${archive}`), ...deps]
+		return [...wholeArchives().map(archive => `-Wl,-force_load,${archive}`), ...dependencyLibraries()]
 	}
 	else if (style === "linux") {
 		// --start-group, because these libraries reference each other in both directions
 		// and a single pass over them in any one order leaves something unresolved
 		return [
-			"-Wl,--whole-archive", ...whole, "-Wl,--no-whole-archive",
-			"-Wl,--start-group", ...deps, "-Wl,--end-group",
+			"-Wl,--whole-archive", ...wholeArchives(), "-Wl,--no-whole-archive",
+			"-Wl,--start-group", ...dependencyLibraries(), "-Wl,--end-group",
 		]
 	}
 	else if (style === "win") {
-		return [...whole, ...deps]
+		return [...wholeArchives(), ...dependencyLibraries()]
 	}
 	else if (style === "winwhole") {
-		return whole.map(archive => `/WHOLEARCHIVE:${basename(archive)}`)
+		return wholeArchives().map(archive => `/WHOLEARCHIVE:${basename(archive)}`)
 	}
 	else {
-		return [...whole, ...deps]
+		return [...wholeArchives(), ...dependencyLibraries()]
 	}
 }
 

@@ -142,7 +142,9 @@ if [ "$target" = "wasm" ]; then
 	# shell cannot execute. Naming the platform skips the detection entirely. wasm_eh is
 	# what -fwasm-exceptions makes this, and it is upstream's own name for it.
 	cmake --build duckdb/build/wasm --parallel "$jobs"
-	make -C wasm
+	# the archive list is read here rather than inside wasm/Makefile — see the comment on
+	# LIBS there for why make cannot run node itself under emsdk's PATH
+	make -C wasm LIBS="$(node scripts/archives.mjs wasm paths | tr '\n' ' ')"
 else
 	config=$here/extension/config-native.cmake
 	setup_vcpkg

@@ -1,7 +1,20 @@
 BUILD = ../duckdb/build/wasm
-# one archive per linked extension, in link order, read out of the build tree — see the
-# comment in scripts/archives.mjs for why this is generated rather than written out
-LIBS = $(shell node ../scripts/archives.mjs wasm paths)
+
+# One archive per linked extension, in link order, read out of the build tree — see the
+# comment in scripts/archives.mjs for why this is generated rather than written out.
+#
+# build.sh passes it in; this Makefile does not run node itself. $(shell node ...) died on
+# the CI runner with "make: node: Permission denied": emsdk puts its own root on PATH, that
+# root holds a *directory* called node/, and make execs a simple command itself rather than
+# through a shell — its PATH search doesn't skip directories, so it tried to execute one. A
+# shell skips it and finds the real node further along PATH. The link then succeeded with an
+# empty --whole-archive and every duckdb symbol undefined, hence the check below: an empty
+# LIBS is always a broken build, never a build with nothing to link.
+LIBS ?=
+
+ifeq ($(strip $(LIBS)),)
+$(error no archives to link — run `bash build.sh wasm`, which passes LIBS in)
+endif
 
 # duckdb registers types and functions from static initializers spread across the
 # archives, so every object has to be linked in, not just the referenced ones.

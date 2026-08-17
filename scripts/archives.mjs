@@ -177,4 +177,7 @@ function spell(style) {
 	}
 }
 
-console.log(spell(style).join("\n"))
+// Forward slashes, even on Windows. binding.gyp pulls this output in through <!@(...) and gyp
+// reads what comes back as a string literal, where a backslash is an escape: D:\a\duckdb reached
+// the linker as "D:aduckdb" and it opened nothing. MSVC, cmake and gyp all take forward slashes.
+console.log(spell(style).map(line => line.replaceAll("\\", "/")).join("\n"))
